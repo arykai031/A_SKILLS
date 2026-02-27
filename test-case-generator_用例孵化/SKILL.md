@@ -26,10 +26,10 @@ markdownToCase/
 ├── config/                 # 配置
 │   ├── module_config.json  # 模块配置文件
 │   └── ...
-├── CaseMD/                 # 测试用例MD文件（仅测试用例，不含功能点分析）
+├── case_MD/                 # 测试用例MD文件（仅测试用例，不含功能点分析）
 │   ├── 唯一码收货_测试用例.md
 │   └── ...
-└── CaseExcel/              # 生成的Excel测试用例文件
+└── case_excel/              # 生成的Excel测试用例文件
     ├── 唯一码收货_测试用例.xlsx
     └── ...
 ```
@@ -81,9 +81,9 @@ markdownToCase/
 
 **操作**：
 
-1. 检查 `CaseMD/_通用测试用例.md` 是否存在
-2. 如果不存在, 调用`script/create_folder.py`创建`CaseMD/_通用测试用例.md`
-3. 如果存在，读取已有的通用场景（从`CaseMD/_通用测试用例.md`）
+1. 检查 `case_MD/_通用测试用例.md` 是否存在
+2. 如果不存在, 自动调用`script/create_folder.py`创建`case_MD/_通用测试用例.md`
+3. 如果存在，读取已有的通用场景（从`case_MD/_通用测试用例.md`）
 4. 识别当前模块与已有模块的相似场景（如：扫码解析、唯一码验证、提交操作等）
 5. 记录可复用的通用场景编号和变量配置
 
@@ -100,7 +100,7 @@ markdownToCase/
 **操作**:
 
 1. 检查 `config/module_config.json` 是否存在
-2. 如果不存在, 调用`script/create_folder.py`创建`config/module_config.json`
+2. 如果不存在, 自动调用`script/create_folder.py`创建`config/module_config.json`
 3. 如果存在，读取已有的模块配置（从`config/module_config.json`）
 4. 对比步骤1的复用清单，确认需要新增的特有场景
 
@@ -124,7 +124,7 @@ markdownToCase/
 
 **在源文档（SRS/）中插入功能点分析段落**，作为需求文档的补充：
 
-参考: `templates/srs_analysis_template.md`
+输出格式参考: `templates/srs_analysis_template.md`
 
 **功能点分析的作用**：
 
@@ -136,7 +136,7 @@ markdownToCase/
 
 **对于唯一码相关模块**：
 
-1. **复用通用场景**：从 `CaseMD/_通用测试用例.md` 复制步骤1识别的可复用场景
+1. **复用通用场景**：从 `case_MD/_通用测试用例.md` 复制步骤1识别的可复用场景
 2. **替换变量**：根据 `config/module_config.json` 中的配置替换变量
 3. **补充特有场景**：添加模块特有场景（从配置的 `unique_scenarios` 中获取）
 
@@ -163,7 +163,7 @@ markdownToCase/
 
 ### 步骤9：保存测试用例
 
-保存到`CaseMD/<模块名称>_测试用例.md`.
+保存到`case_MD/<模块名称>_测试用例.md`.
 
 ## 示例输出结构
 
@@ -177,8 +177,8 @@ markdownToCase/
 
 脚本将：
 
-- 从 `CaseMD/` 目录读取测试用例文件
-- 生成Excel文件到 `CaseExcel/` 目录
+- 从 `case_MD/` 目录读取测试用例文件
+- 生成Excel文件到 `case_excel/` 目录
 
 ## 思维导图可视化
 
