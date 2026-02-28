@@ -10,8 +10,8 @@ Markdown测试用例转Excel工具
     python md_to_excel.py <markdown文件路径> [输出excel路径]
 
 示例：
-    python md_to_excel.py CaseMD/唯一码收货_测试用例.md
-    python md_to_excel.py CaseMD/唯一码收货测试用例.md CaseExcel/唯一码收货_测试用例.xlsx
+    python md_to_excel.py case_MD/唯一码收货_测试用例.md
+    python md_to_excel.py case_MD/唯一码收货_测试用例.md case_excel/唯一码收货_测试用例.xlsx
 """
 
 import argparse

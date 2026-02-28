@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-02-28 10:30:00",
+  "settings": {
+    "similarity_threshold": 0.7,
+    "min_common_modules": 2,
+    "keyword_weight": 0.4,
+    "semantic_weight": 0.6
+  },
+  "summary": {
+    "total_features": 0,
+    "common_features_count": 0,
+    "unique_features_count": 0,
+    "modules_analyzed": []
+  },
+  "manual_adjustments": [],
+  "feature_groups": []
+}

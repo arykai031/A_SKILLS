@@ -1,8 +1,29 @@
 """
 文件夹/文件创建工具
 
-功能:
-    用于创建文件夹/文件,当文件夹/文件不存在时,创建;
+功能：
+    用于创建文件夹/文件，当文件夹/文件不存在时创建，存在时提示
+
+用法：
+    python create_folder.py <type> <path>
+
+    参数：
+        type  - 文件类型（folder 或 file）
+        path  - 路径（文件夹路径或文件路径）
+
+示例：
+    # 创建文件夹
+    python create_folder.py folder ./output
+
+    # 创建文件
+    python create_folder.py file ./output/test.txt
+
+    # 在Python代码中使用
+    from create_folder import create_folder, create_file
+    create_folder("./output")
+    create_file("./output/test.txt")
+
+创建日期：2026-02-28
 """
 
 import os
