@@ -1,17 +1,18 @@
 """
-Markdown测试用例转Excel工具
+批量Markdown测试用例转Excel工具
 
 功能：
-1. 解析Markdown格式的测试用例
-2. 提取模块、功能点、用例信息
-3. 生成结构化的Excel测试用例文档
+1. 批量解析case_MD目录下的所有Markdown测试用例文件
+2. 将所有测试用例合并到一个Excel文件中
+3. 按模块分组，生成连续的用例编号
 
 用法：
-    python md_to_excel.py <markdown文件路径> [输出excel路径]
+    python batch_md_to_excel.py [输出excel路径] [--prefix 前缀]
 
 示例：
-    python md_to_excel.py case_MD/唯一码收货_测试用例.md
-    python md_to_excel.py case_MD/唯一码收货_测试用例.md case_excel/唯一码收货_测试用例.xlsx
+    python batch_md_to_excel.py
+    python batch_md_to_excel.py case_excel/所有测试用例.xlsx
+    python batch_md_to_excel.py --prefix TEST
 """
 
 import argparse
@@ -21,6 +22,7 @@ import os
 from dataclasses import dataclass
 from typing import List, Optional
 from pathlib import Path
+from datetime import datetime
 
 try:
     import openpyxl
@@ -34,8 +36,23 @@ except ImportError:
 
 # 模块名称到缩写的映射
 MODULE_ABBR_MAP = {
+    # 不带"测试用例"后缀的模块名称映射
+    "唯一码收货": "WYMSH",
+    "唯一码组盘": "WYMZP",
+    "唯一码直接盘点": "WYMZHPD",
+    "唯一码按任务盘点": "WYMRWPD",
+    "唯一码直接移库": "WYMZHYK",
+    "唯一码直接补货": "WYMZHBH",
+    "唯一码按任务拣货": "WYMRWLH",
+    "唯一码在线拣选": "WYMZXJX",
+    "回流入库": "HLRK",
+    "唯一码自动分配": "WYMZDFP",
+    "唯一码手动分配": "WYMSDFP",
+    "唯一码快捷出库": "WYMKJCK",
+    "唯一码库存调整": "WYMKCTZ",
+    "生成上架任务": "SCSJRW",
+    "通用测试用例": "TY",
     # 带"测试用例"后缀的模块名称映射
-    "通用测试用例测试用例": "TY",
     "唯一码收货测试用例": "WYMSH",
     "唯一码组盘测试用例": "WYMZP",
     "唯一码直接盘点测试用例": "WYMZHPD",
@@ -65,12 +82,6 @@ def format_content_with_numbering(content: str) -> str:
     """
     为内容添加序号编号
     单行内容不添加，多行内容每行添加序号
-
-    Args:
-        content: 原始内容文本
-
-    Returns:
-        添加序号后的文本
     """
     if not content:
         return content
@@ -105,20 +116,22 @@ class TestCase:
     steps: str  # 操作步骤
     expected: str  # 预期结果
     case_no: str = ""  # 用例编号
+    source_file: str = ""  # 来源文件
 
 
 class MarkdownParser:
     """Markdown测试用例解析器"""
 
-    def __init__(self, content: str):
+    def __init__(self, content: str, source_file: str = ""):
         self.content = content
         self.lines = content.split("\n")
         self.current_module = ""
         self.current_feature = ""
-        self.current_case_title = ""  # 当前用例标题（来自###行）
+        self.current_case_title = ""
         self.cases: List[TestCase] = []
+        self.source_file = source_file
 
-    def parse(self, prefix: str = "DH") -> List[TestCase]:
+    def parse(self) -> List[TestCase]:
         """解析Markdown内容，提取测试用例"""
         i = 0
         while i < len(self.lines):
@@ -130,13 +143,13 @@ class MarkdownParser:
             # 解析模块 (# 开头，但排除##和###)
             if line.startswith("# ") and not line.startswith("## "):
                 self.current_module = line[2:].strip()
-                self.current_feature = ""  # 重置功能点
-                self.current_case_title = ""  # 重置用例标题
+                self.current_feature = ""
+                self.current_case_title = ""
 
             # 解析功能点 (## 开头)
             elif line.startswith("## "):
                 self.current_feature = line[3:].strip()
-                self.current_case_title = ""  # 重置用例标题
+                self.current_case_title = ""
 
             # 解析测试用例标题 (### 开头)
             elif line.startswith("### "):
@@ -150,15 +163,12 @@ class MarkdownParser:
 
             i += 1
 
-        # 生成用例编号，传入前缀
-        self._generate_case_numbers(prefix)
         return self.cases
 
     def _parse_case_line(self, line: str) -> Optional[TestCase]:
         """
         解析单行测试用例
         格式：- [Px] 前置条件 | 操作步骤 | 预期结果
-        （用例标题来自###行）
         """
         # 提取优先级
         priority_match = re.match(r"- \[(P\d+)\] (.+)", line)
@@ -168,22 +178,19 @@ class MarkdownParser:
         priority = priority_match.group(1)
         remaining = priority_match.group(2)
 
-        # 按 | 分割字段（3个字段：前置条件、步骤、预期结果）
+        # 按 | 分割字段
         parts = [p.strip() for p in remaining.split("|")]
 
         if len(parts) >= 3:
-            # 格式：[Px] 前置条件 | 操作步骤 | 预期结果
-            precondition = parts[0].replace(";", "\n").replace(";", "\n")
-            steps = parts[1].replace(";", "\n").replace(";", "\n")
-            expected = parts[2].replace(";", "\n").replace(";", "\n")
+            precondition = parts[0].replace(";", "\n").replace("；", "\n")
+            steps = parts[1].replace(";", "\n").replace("；", "\n")
+            expected = parts[2].replace(";", "\n").replace("；", "\n")
         elif len(parts) == 2:
-            # 只有前置条件和步骤
-            precondition = parts[0].replace(";", "\n").replace(";", "\n")
-            steps = parts[1].replace(";", "\n").replace(";", "\n")
+            precondition = parts[0].replace(";", "\n").replace("；", "\n")
+            steps = parts[1].replace(";", "\n").replace("；", "\n")
             expected = ""
         elif len(parts) == 1:
-            # 只有前置条件
-            precondition = parts[0].replace(";", "\n").replace(";", "\n")
+            precondition = parts[0].replace(";", "\n").replace("；", "\n")
             steps = ""
             expected = ""
         else:
@@ -195,25 +202,24 @@ class MarkdownParser:
             module=self.current_module,
             feature=self.current_feature,
             priority=priority,
-            title=self.current_case_title,  # 使用###行的标题
+            title=self.current_case_title,
             precondition=precondition,
             steps=steps,
             expected=expected,
+            source_file=self.source_file,
         )
 
-    def _generate_case_numbers(self, prefix: str = "DH"):
-        """生成用例编号"""
-        module_counter = {}
-        for case in self.cases:
-            if case.module not in module_counter:
-                module_counter[case.module] = 0
-            module_counter[case.module] += 1
 
-            # 获取模块缩写
-            module_abbr = get_module_abbr(case.module)
+def generate_case_numbers(cases: List[TestCase], prefix: str = "DH") -> None:
+    """为所有用例生成编号"""
+    module_counter = {}
+    for case in cases:
+        if case.module not in module_counter:
+            module_counter[case.module] = 0
+        module_counter[case.module] += 1
 
-            # 生成编号: xxx_模块_序号
-            case.case_no = f"{prefix}_{module_abbr}_{module_counter[case.module]:03d}"
+        module_abbr = get_module_abbr(case.module)
+        case.case_no = f"{prefix}_{module_abbr}_{module_counter[case.module]:03d}"
 
 
 class ExcelGenerator:
@@ -246,6 +252,7 @@ class ExcelGenerator:
             "前置条件",
             "操作步骤",
             "预期结果",
+            "来源文件",
         ]
 
         for col, header in enumerate(headers, 1):
@@ -266,7 +273,6 @@ class ExcelGenerator:
             self.ws.cell(row=row, column=3, value=case.feature)
             self.ws.cell(row=row, column=4, value=case.priority)
             self.ws.cell(row=row, column=5, value=case.title)
-            # 对前置条件、操作步骤、预期结果添加序号格式化
             self.ws.cell(
                 row=row,
                 column=6,
@@ -278,10 +284,10 @@ class ExcelGenerator:
             self.ws.cell(
                 row=row, column=8, value=format_content_with_numbering(case.expected)
             )
+            self.ws.cell(row=row, column=9, value=case.source_file)
 
     def _apply_styles(self):
         """应用样式"""
-        # 定义边框
         thin_border = Border(
             left=Side(style="thin"),
             right=Side(style="thin"),
@@ -289,20 +295,17 @@ class ExcelGenerator:
             bottom=Side(style="thin"),
         )
 
-        # 优先级颜色映射
         priority_colors = {
-            "P0": "FF6B6B",  # 红色 - 高优先级
-            "P1": "FFD93D",  # 黄色 - 中优先级
-            "P2": "6BCB77",  # 绿色 - 低优先级
-            "P3": "95A5A6",  # 灰色 - 最低优先级（共享用例）
+            "P0": "FF6B6B",
+            "P1": "FFD93D",
+            "P2": "6BCB77",
+            "P3": "95A5A6",
         }
 
         for row in range(2, len(self.cases) + 2):
-            # 获取优先级单元格
             priority_cell = self.ws.cell(row=row, column=4)
             priority = priority_cell.value
 
-            # 根据优先级设置背景色
             if priority in priority_colors:
                 priority_cell.fill = PatternFill(
                     start_color=priority_colors[priority],
@@ -311,8 +314,7 @@ class ExcelGenerator:
                 )
                 priority_cell.font = Font(bold=True)
 
-            # 应用边框和对齐
-            for col in range(1, 9):
+            for col in range(1, 10):
                 cell = self.ws.cell(row=row, column=col)
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical="top", wrap_text=True)
@@ -320,7 +322,7 @@ class ExcelGenerator:
     def _adjust_column_widths(self):
         """调整列宽"""
         column_widths = {
-            1: 15,  # 用例编号
+            1: 18,  # 用例编号
             2: 20,  # 所属模块
             3: 25,  # 功能点
             4: 10,  # 优先级
@@ -328,102 +330,103 @@ class ExcelGenerator:
             6: 35,  # 前置条件
             7: 40,  # 操作步骤
             8: 40,  # 预期结果
+            9: 25,  # 来源文件
         }
 
         for col, width in column_widths.items():
             self.ws.column_dimensions[get_column_letter(col)].width = width
 
-        # 设置行高
         self.ws.row_dimensions[1].height = 30
         for row in range(2, len(self.cases) + 2):
             self.ws.row_dimensions[row].height = 60
 
 
-def ensure_directory(path: str) -> str:
-    """确保目录存在，如果不存在则创建"""
-    directory = os.path.dirname(path)
-    if directory and not os.path.exists(directory):
-        os.makedirs(directory, exist_ok=True)
-    return path
-
-
-def get_default_output_path(input_path: str) -> str:
-    """根据输入路径生成默认输出路径"""
-    input_path_obj = Path(input_path)
-
-    # 如果输入路径包含 CaseMD，则输出到 CaseExcel
-    if "CaseMD" in input_path_obj.parts:
-        # 将 CaseMD 替换为 CaseExcel
-        parts = list(input_path_obj.parts)
-        for i, part in enumerate(parts):
-            if part == "CaseMD":
-                parts[i] = "CaseExcel"
-                break
-        output_path = Path(*parts).with_suffix(".xlsx")
-        return str(output_path)
-
-    # 默认在同一目录下，扩展名改为.xlsx
-    return str(input_path_obj.with_suffix(".xlsx"))
+def get_all_md_files(case_dir: str) -> List[str]:
+    """获取case_MD目录下的所有md文件，按文件名排序"""
+    md_files = []
+    for f in os.listdir(case_dir):
+        if f.endswith(".md"):
+            md_files.append(os.path.join(case_dir, f))
+    # 按文件名排序
+    md_files.sort(key=lambda x: os.path.basename(x))
+    return md_files
 
 
 def main():
     """主函数"""
-    # 解析命令行参数
     parser = argparse.ArgumentParser(
-        description="Markdown测试用例转Excel工具",
+        description="批量Markdown测试用例转Excel工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例：
-  python md_to_excel.py CaseMD/唯一码收货测试用例.md
-  python md_to_excel.py CaseMD/唯一码收货测试用例.md CaseExcel/唯一码收货测试用例.xlsx
-  python md_to_excel.py CaseMD/唯一码收货测试用例.md --prefix TEST
+  python batch_md_to_excel.py
+  python batch_md_to_excel.py case_excel/所有测试用例.xlsx
+  python batch_md_to_excel.py --prefix TEST
         """,
     )
-    parser.add_argument("input", help="输入的Markdown文件路径")
     parser.add_argument("output", nargs="?", help="输出的Excel文件路径（可选）")
     parser.add_argument("--prefix", "-p", default="DH", help="用例编号前缀，默认为DH")
+    parser.add_argument(
+        "--case-dir", "-d", default="case_MD", help="测试用例目录，默认为case_MD"
+    )
 
     args = parser.parse_args()
 
-    md_path = args.input
     prefix = args.prefix
+    case_dir = args.case_dir
 
     # 确定输出路径
     if args.output:
         output_path = args.output
     else:
-        output_path = get_default_output_path(md_path)
-
-    # 检查输入文件是否存在
-    if not os.path.exists(md_path):
-        print(f"❌ 错误：文件不存在 - {md_path}")
-        sys.exit(1)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = f"case_excel/所有测试用例_{timestamp}.xlsx"
 
     # 确保输出目录存在
-    ensure_directory(output_path)
+    output_dir = os.path.dirname(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
 
-    # 读取Markdown文件
-    try:
-        with open(md_path, "r", encoding="utf-8") as f:
-            content = f.read()
-    except Exception as e:
-        print(f"❌ 错误：读取文件失败 - {e}")
+    # 获取所有md文件
+    if not os.path.exists(case_dir):
+        print(f"❌ 错误：目录不存在 - {case_dir}")
         sys.exit(1)
 
-    # 解析测试用例，传入前缀
-    print(f"📖 正在解析：{md_path}")
-    parser = MarkdownParser(content)
-    cases = parser.parse(prefix=prefix)
-
-    if not cases:
-        print("⚠️ 警告：未找到测试用例，请检查文件格式")
+    md_files = get_all_md_files(case_dir)
+    if not md_files:
+        print(f"⚠️ 警告：在 {case_dir} 目录下未找到Markdown文件")
         sys.exit(1)
 
-    print(f"✅ 找到 {len(cases)} 条测试用例")
+    print(f"📁 找到 {len(md_files)} 个Markdown文件：")
+    for f in md_files:
+        print(f"   - {os.path.basename(f)}")
+    print()
+
+    # 解析所有测试用例
+    all_cases: List[TestCase] = []
+    for md_path in md_files:
+        print(f"📖 正在解析：{os.path.basename(md_path)}")
+        try:
+            with open(md_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            print(f"   ⚠️ 读取文件失败：{e}")
+            continue
+
+        parser = MarkdownParser(content, source_file=os.path.basename(md_path))
+        cases = parser.parse()
+        all_cases.extend(cases)
+        print(f"   ✅ 找到 {len(cases)} 条测试用例")
+
+    if not all_cases:
+        print("\n❌ 错误：未找到任何测试用例")
+        sys.exit(1)
+
+    print(f"\n📊 总计：{len(all_cases)} 条测试用例")
 
     # 统计优先级
     priority_count = {"P0": 0, "P1": 0, "P2": 0, "P3": 0}
-    for case in cases:
+    for case in all_cases:
         if case.priority in priority_count:
             priority_count[case.priority] += 1
 
@@ -432,10 +435,15 @@ def main():
     print(f"   P2（低）：{priority_count['P2']} 条")
     print(f"   P3（共享）：{priority_count['P3']} 条")
 
+    # 生成用例编号
+    generate_case_numbers(all_cases, prefix)
+
     # 生成Excel
     print(f"\n📝 正在生成Excel：{output_path}")
-    generator = ExcelGenerator(cases)
+    generator = ExcelGenerator(all_cases)
     generator.generate(output_path)
+
+    print("\n✨ 转换完成！")
 
 
 if __name__ == "__main__":
