@@ -1,38 +1,52 @@
+# 数据库种子配置模板
 # Database Seeding Configuration Template
 #
+# 此配置文件定义如何使用假数据填充数据库
 # This configuration file defines how to seed your database with fake data.
+# 复制此文件并根据项目需求进行定制
 # Copy this file and customize it for your project.
 
+# 数据库连接配置
 # Database connection configuration
 database:
+  # 数据库类型：postgresql, mysql, sqlite, mongodb
   # Database type: postgresql, mysql, sqlite, mongodb
-  type: postgresql
+  type: mysql
 
+  # 连接字符串（替代各个独立组件）
   # Connection string (alternative to individual components)
-  connection: postgresql://postgres:password@localhost:5432/mydb
+  connection: mysql://root:password@localhost:3306/mydb
 
+  # 或使用各个独立组件
   # Or use individual components
   # host: localhost
-  # port: 5432
+  # port: 3306
   # name: mydb
-  # user: postgres
+  # user: root
   # password: password
 
+# Faker 配置
 # Faker configuration
 faker:
+  # 生成数据的语言环境（en_US, en_GB, fr_FR 等）
   # Locale for generated data (en_US, en_GB, fr_FR, etc.)
   locale: en_US
 
+  # 种子值用于可重现的数据（可选）
   # Seed for reproducible data (optional)
   # seed: 12345
 
+# 要播种的模型
 # Models to seed
 models:
+  # 用户模型
   # User model
   - name: User
+    # 要创建的记录数量
     # Number of records to create
     count: 100
 
+    # 工厂函数或字段到生成器的字典映射
     # Factory function or dictionary mapping fields to generators
     factory:
       username: "lambda fake: fake.user_name()"
@@ -43,21 +57,25 @@ models:
       is_active: "lambda fake: fake.boolean(chance_of_getting_true=80)"
       created_at: "lambda fake: fake.date_time_between(start_date='-2y', end_date='now')"
 
+    # 模型定义的模块路径
     # Module path where model is defined
     module: "src.domain.models"
 
+  # 文章模型
   # Post model
   - name: Post
     count: 500
     factory:
       title: "lambda fake: fake.sentence(nb_words=6)"
       content: "lambda fake: fake.text(max_nb_chars=2000)"
+      # 外键引用用户
       # Foreign key reference to User
       author_id: "lambda fake: fake.random_int(min=1, max=100)"
       published_at: "lambda fake: fake.date_time_between(start_date='-1y', end_date='now')"
       is_published: "lambda fake: fake.boolean(chance_of_getting_true=70)"
     module: "src.domain.models"
 
+  # 候选人模型（Elios 特定示例）
   # Candidate model (Elios-specific example)
   - name: Candidate
     count: 50
@@ -66,6 +84,7 @@ models:
       email: "lambda fake: fake.email()"
       phone: "lambda fake: fake.phone_number()"
       years_of_experience: "lambda fake: fake.random_int(min=0, max=15)"
+      # 技能作为 JSON 数组
       # Skills as JSON array
       skills: "lambda fake: fake.random_elements(['Python', 'JavaScript', 'SQL', 'React'], length=fake.random_int(min=2, max=4), unique=True)"
       linkedin_url: "lambda fake: f'https://linkedin.com/in/{fake.user_name()}'"
@@ -73,22 +92,29 @@ models:
       status: "lambda fake: fake.random_element(['pending', 'interviewed', 'hired', 'rejected'])"
     module: "src.domain.models"
 
+# 播种选项
 # Seeding options
 options:
+  # 提交的批次大小
   # Batch size for commits
   batch_size: 1000
 
+  # 播种前清除现有数据
   # Clear existing data before seeding
   clear_existing: false
 
+  # 如果已播种则跳过（幂等）
   # Skip if already seeded (idempotent)
   skip_if_exists: true
 
+  # 在播种过程中显示进度
   # Show progress during seeding
   show_progress: true
 
+# 播种后钩子（可选）
 # Post-seeding hooks (optional)
 hooks:
+  # 在播种完成后运行
   # Run after seeding completes
   post_seed:
     - "python scripts/update_search_index.py"
